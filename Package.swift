@@ -66,11 +66,12 @@ let package = Package(
             name: "_CWASI",
             dependencies: []
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )
 
 for target in package.targets {
     var settings = target.swiftSettings ?? []
-    settings.append(.enableExperimentalFeature("StrictConcurrency=complete"))
+    settings.append(.unsafeFlags(["-require-explicit-sendable"]))
     target.swiftSettings = settings
 }
