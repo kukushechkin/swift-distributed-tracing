@@ -207,7 +207,7 @@ actor MySampleServer {
 
 While this code is very simple for illustration purposes, and it may seem surprising why there are two separate places where we need to call into user-code separately, in practice such situations can happen when using asynchronous network or database libraries which offer their API in terms of callbacks. Always consider if and when to restore context such that it makes sense for the end user.
 
-#### Manual propogation
+#### Manual propagation
 
 There are circumstances where [task-local variable](https://developer.apple.com/documentation/swift/tasklocal) propagation may be interrupted. One common instance is when using
 [`swift-nio`](https://github.com/apple/swift-nio)'s [`EventLoopFuture`](https://swiftpackageindex.com/apple/swift-nio/main/documentation/niocore/eventloopfuture) to chain asynchronous work. In these circumstances, the library can manually propogate the context metadata by taking the context of the parent span, and providing it into the `context` argument of the child span:
@@ -371,6 +371,85 @@ which is equivalent to surrounding the `withSpan` call with a binding of the con
 
 Tracing works similarly to swift-log and swift-metrics, in the sense that there is a global "backend" configured at application start, by end-users (developers) of an application. And this is how using `InstrumentationSystem/tracer` gets the "right" tracer at runtime.
 
-You may be tempted to allow users _configuring_ a tracer as part of your applications initialization. Generally we advice against that pattern, because it makes it confusing which library needs to be configured, how, and where -- and if libraries are composed, perhaps the setting is not available to the actual "end-user" anymore.
+#### Should my library accept a tracer parameter?
+
+You may be tempted to allow users to configure a tracer as part of your applications initialization. Generally we advise against that pattern, because it makes it confusing which library needs to be configured, how, and where -- and if libraries are composed, perhaps the setting is not available to the actual "end-user" anymore.
 
 On the other hand, it may be valuable for testing scenarios to be able to set a tracer on a specific instance of your library. Therefore, if you really want to offer a configurable `Instrument` or `Tracer` then we suggest defaulting this setting to `nil`, and if it is `nil`, reaching to the global `InstrumentationSystem/instrument` or `InstrumentationSystem/tracer` - this way it is possible to override a tracer for testing on a per-instance basis, but the default mode of operation that end-users expect from libraries remains working.
+
+#### Init-time capture vs. per-call resolution
+
+A library that instruments its own code has a choice about when to resolve the instrument or tracer: at
+construction time or at the emission site. Both are valid; their behaviors differ.
+
+**Init-time capture** freezes the instrument at the moment the object is constructed.
+
+```swift
+public final class ConnectionPool {
+    private let tracer: any Tracer
+
+    public init() {
+        self.tracer = InstrumentationSystem.tracer  // resolved now, kept for the object's lifetime
+    }
+
+    public func acquire() async throws -> Connection {
+        try await self.tracer.withSpan("pool.acquire") { _ in ... }
+    }
+}
+```
+
+This is fine — and sometimes desirable — for applications that bootstrap tracing globally at startup and never
+override it, or when you intentionally want to pin a specific tracer to a long-lived object regardless of any
+caller's scope. The trade-off is that callers running inside a ``TaskLocalInstrument/with(_:_:)``
+scope don't influence which tracer the object uses; the captured tracer takes precedence. Capturing also
+requires that tracing is bootstrapped before the object is constructed (see the bootstrap-ordering note in
+<doc:TraceYourApplication>).
+
+**Per-call resolution** resolves fresh on every operation, honoring the caller's current task-local scope.
+
+```swift
+public final class ConnectionPool {
+    public init() {}
+
+    public func acquire() async throws -> Connection {
+        try await withSpan("pool.acquire") { _ in ... }  // resolves on every call
+    }
+}
+```
+
+This is what the free-function `withSpan` / `startSpan` overloads do internally. Callers who scope a different
+tracer (via ``TaskLocalInstrument/with(_:_:)`` against a bootstrapped
+``TaskLocalInstrument``) get the scoped tracer; callers running under a non-scoping bootstrap get
+that tracer; neither has to know or care. It's the approach most generic instrumentation wants. Pick the
+approach that matches the behavior you want to offer, and document it — callers should know whether they can
+influence your library's instrument by scoping one around their call or not. The same choice applies to
+``InstrumentationSystem/instrument``.
+
+#### Testing your library's instrumentation
+
+``TaskLocalInstrument/with(_:_:)`` is the recommended way to test span emission and context
+propagation from a library without touching the process-wide bootstrap. The test target bootstraps a
+``TaskLocalInstrument`` once; each test then layers its own in-memory tracer on top. Tests can run
+in parallel without serialization or global-state cleanup.
+
+```swift
+import Testing
+import Tracing
+import InMemoryTracing
+
+@Test func emitsExpectedSpan() async throws {
+    let tracer = InMemoryTracer()
+    await TaskLocalInstrument.with(tracer) {
+        await MyLibrary().doWork()
+    }
+    #expect(tracer.spans.map(\.operationName) == ["my-library.do-work"])
+}
+```
+
+Because ``TaskLocalInstrument/with(_:_:)`` layers in front of the bootstrapped wrapper's inner instrument,
+a test can assert on spans even if the test target's bootstrap has a baseline tracer — the test's in-memory
+tracer captures the emission first. For propagation tests, call `InstrumentationSystem.instrument.inject(...)` /
+`.extract(...)` inside the scope and assert on the carrier / context the way your production code does.
+
+See <doc:TraceYourApplication#Scoping-an-instrument-with-TaskLocalInstrument> for the full
+semantics, including how scoped and inner instruments interact for overlapping keys.

@@ -49,9 +49,7 @@ public func startSpan<Instant: TracerInstant>(
     file fileID: String = #fileID,
     line: UInt = #line
 ) -> any Span {
-    // Effectively these end up calling the same method, however
-    // we try to not use the deprecated methods ourselves anyway
-    InstrumentationSystem.legacyTracer.startAnySpan(
+    InstrumentationSystem._legacyOrModernTracer.startAnySpan(
         operationName,
         at: instant(),
         context: context(),
@@ -94,9 +92,7 @@ public func startSpan(
     file fileID: String = #fileID,
     line: UInt = #line
 ) -> any Span {
-    // Effectively these end up calling the same method, however
-    // we try to not use the deprecated methods ourselves anyway
-    InstrumentationSystem.legacyTracer.startAnySpan(
+    InstrumentationSystem._legacyOrModernTracer.startAnySpan(
         operationName,
         at: DefaultTracerClock.now,
         context: context(),
@@ -141,9 +137,7 @@ public func startSpan(
     file fileID: String = #fileID,
     line: UInt = #line
 ) -> any Span {
-    // Effectively these end up calling the same method, however
-    // we try to not use the deprecated methods ourselves anyway
-    InstrumentationSystem.tracer.startAnySpan(
+    InstrumentationSystem._legacyOrModernTracer.startAnySpan(
         operationName,
         at: instant(),
         context: context(),
@@ -190,7 +184,7 @@ public func withSpan<T, Instant: TracerInstant>(
     line: UInt = #line,
     _ operation: (any Span) throws -> T
 ) rethrows -> T {
-    try InstrumentationSystem.legacyTracer.withAnySpan(
+    try InstrumentationSystem._legacyOrModernTracer.withAnySpan(
         operationName,
         at: instant(),
         context: context(),
@@ -235,7 +229,7 @@ public func withSpan<T>(
     line: UInt = #line,
     _ operation: (any Span) throws -> T
 ) rethrows -> T {
-    try InstrumentationSystem.legacyTracer.withAnySpan(
+    try InstrumentationSystem._legacyOrModernTracer.withAnySpan(
         operationName,
         at: DefaultTracerClock.now,
         context: context(),
@@ -282,7 +276,7 @@ public func withSpan<T>(
     line: UInt = #line,
     _ operation: (any Span) throws -> T
 ) rethrows -> T {
-    try InstrumentationSystem.legacyTracer.withAnySpan(
+    try InstrumentationSystem._legacyOrModernTracer.withAnySpan(
         operationName,
         at: instant(),
         context: context(),
@@ -333,7 +327,7 @@ public func withSpan<T, Instant: TracerInstant>(
     line: UInt = #line,
     _ operation: (any Span) async throws -> T
 ) async rethrows -> T {
-    try await InstrumentationSystem.legacyTracer.withAnySpan(
+    try await InstrumentationSystem._legacyOrModernTracer.withAnySpan(
         operationName,
         at: instant(),
         context: context(),
@@ -376,7 +370,7 @@ public func withSpan<T, Instant: TracerInstant>(
     line: UInt = #line,
     _ operation: (any Span) async throws -> T
 ) async rethrows -> T {
-    try await InstrumentationSystem.legacyTracer.withAnySpan(
+    try await InstrumentationSystem._legacyOrModernTracer.withAnySpan(
         operationName,
         at: instant(),
         context: context(),
@@ -423,7 +417,7 @@ public func withSpan<T>(
     line: UInt = #line,
     _ operation: (any Span) async throws -> T
 ) async rethrows -> T {
-    try await InstrumentationSystem.legacyTracer.withAnySpan(
+    try await InstrumentationSystem._legacyOrModernTracer.withAnySpan(
         operationName,
         at: DefaultTracerClock.now,
         context: context(),
@@ -464,7 +458,7 @@ public func withSpan<T>(
     line: UInt = #line,
     _ operation: (any Span) async throws -> T
 ) async rethrows -> T {
-    try await InstrumentationSystem.legacyTracer.withAnySpan(
+    try await InstrumentationSystem._legacyOrModernTracer.withAnySpan(
         operationName,
         at: DefaultTracerClock.now,
         context: context(),
@@ -513,7 +507,7 @@ public func withSpan<T>(
     line: UInt = #line,
     _ operation: (any Span) async throws -> T
 ) async rethrows -> T {
-    try await InstrumentationSystem.legacyTracer.withAnySpan(
+    try await InstrumentationSystem._legacyOrModernTracer.withAnySpan(
         operationName,
         at: instant(),
         context: context(),
@@ -556,7 +550,7 @@ public func withSpan<T>(
     line: UInt = #line,
     _ operation: (any Span) async throws -> T
 ) async rethrows -> T {
-    try await InstrumentationSystem.legacyTracer.withAnySpan(
+    try await InstrumentationSystem._legacyOrModernTracer.withAnySpan(
         operationName,
         at: instant(),
         context: context(),

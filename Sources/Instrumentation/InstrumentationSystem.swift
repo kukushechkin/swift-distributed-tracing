@@ -20,6 +20,9 @@ import ServiceContextModule
 ///
 /// Set up the instrumentation using ``bootstrap(_:)``, and access the globally available instrument using ``instrument``.
 /// If you need to use more that one cross-cutting tool you can do so by using ``MultiplexInstrument``.
+///
+/// To enable scoped overrides (per-test, per-tenant, per-subsystem) without process-global mutation,
+/// bootstrap with ``TaskLocalInstrument`` and enter scopes via ``TaskLocalInstrument/with(_:_:)``.
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)  // for TaskLocal ServiceContext
 public enum InstrumentationSystem {
     /// Marked as @unchecked Sendable due to the synchronization being
@@ -55,8 +58,8 @@ public enum InstrumentationSystem {
 
         func _findInstrument(where predicate: (Instrument) -> Bool) -> Instrument? {
             self.lock.withReaderLock {
-                if let multiplex = self._instrument as? MultiplexInstrument {
-                    return multiplex.firstInstrument(where: predicate)
+                if let container = self._instrument as? _InstrumentContainer {
+                    return container.firstInstrument(where: predicate)
                 } else if predicate(self._instrument) {
                     return self._instrument
                 } else {
@@ -84,9 +87,11 @@ public enum InstrumentationSystem {
         self.shared.bootstrapInternal(instrument)
     }
 
-    /// Returns the globally configured instrument.
+    /// Returns the currently bootstrapped ``Instrument``, or a ``NoOpInstrument`` if none was set.
     ///
-    /// Defaults to a no-op ``Instrument`` if ``bootstrap(_:)`` wasn't called before.
+    /// If the bootstrapped instrument is a ``TaskLocalInstrument``, scoped members entered via
+    /// ``TaskLocalInstrument/with(_:_:)`` participate when the returned instrument's methods are invoked —
+    /// they're walked from `inject` / `extract` and from discovery (``tracer``, ``_findInstrument(where:)``).
     public static var instrument: Instrument {
         shared.instrument
     }
@@ -95,6 +100,10 @@ public enum InstrumentationSystem {
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)  // for TaskLocal ServiceContext
 extension InstrumentationSystem {
     /// INTERNAL API: Do Not Use
+    ///
+    /// Walks the bootstrapped instrument for the first member matching `predicate`. Recurses into
+    /// ``_InstrumentContainer`` members, including ``MultiplexInstrument`` members and the scoped
+    /// task-local layer of ``TaskLocalInstrument``.
     public static func _findInstrument(where predicate: (Instrument) -> Bool) -> Instrument? {
         self.shared._findInstrument(where: predicate)
     }

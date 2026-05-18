@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift Distributed Tracing open source project
 //
-// Copyright (c) 2020-2023 Apple Inc. and the Swift Distributed Tracing project authors
+// Copyright (c) 2020-2025 Apple Inc. and the Swift Distributed Tracing project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -31,16 +31,22 @@ extension InstrumentationSystem {
     }
 }
 
-/// Tests that rely on the global InstrumentationSystem
-/// These tests must be isolated from each other since they mutate global state
-@Suite("Global InstrumentationSystem", .serialized)
-struct GlobalTracingInstrumentationSystemTests {
+/// All tests that touch `InstrumentationSystem` global state run here under a single `.serialized` suite.
+/// Each test's `init` resets the bootstrap to a baseline `TaskLocalInstrument()` (which wraps
+/// `NoOpInstrument`), so individual tests can either mutate the bootstrap (and rely on the next `init`
+/// to reset) or just enter scopes via `TaskLocalInstrument.with(_:_:)`.
+@Suite("InstrumentationSystem", .serialized)
+struct InstrumentationSystemTests {
+
+    init() {
+        InstrumentationSystem.bootstrapInternal(TaskLocalInstrument())
+    }
+
+    // MARK: - Bootstrap discovery
 
     @Test("Provides access to a tracer")
     func accessToTracer() {
-        // Clean state before test
         InstrumentationSystem.bootstrapInternal(nil)
-        defer { InstrumentationSystem.bootstrapInternal(nil) }
 
         let tracer = TestTracer()
 
@@ -70,10 +76,6 @@ struct GlobalTracingInstrumentationSystemTests {
 
     @Test("Global tracing methods preserve arguments")
     func globalTracingMethods() async throws {
-        // Clean state before test
-        InstrumentationSystem.bootstrapInternal(nil)
-        defer { InstrumentationSystem.bootstrapInternal(nil) }
-
         // Bootstrap with TestTracer to capture spans
         let tracer = TestTracer()
         InstrumentationSystem.bootstrapInternal(tracer)
@@ -192,64 +194,134 @@ struct GlobalTracingInstrumentationSystemTests {
         let finishedSpans = tracer.spans
         #expect(finishedSpans.count == 9)
 
-        // Verify span 1: startSpan with custom instant
         let recorded1 = finishedSpans[0]
         #expect(recorded1.operationName == "startSpan-with-instant")
         #expect(recorded1.kind == .client)
         #expect(recorded1.context[TestContextKey.self] == "context1")
         #expect(recorded1.startTimestampNanosSinceEpoch == customInstant1.nanosecondsSinceEpoch)
 
-        // Verify span 2: startSpan without instant
         let recorded2 = finishedSpans[1]
         #expect(recorded2.operationName == "startSpan-default-instant")
         #expect(recorded2.kind == .server)
         #expect(recorded2.context[TestContextKey.self] == "context2")
-        // Note: Can't verify exact instant since it used DefaultTracerClock.now
 
-        // Verify span 3: startSpan with instant (alt)
         let recorded3 = finishedSpans[2]
         #expect(recorded3.operationName == "startSpan-instant-alt")
         #expect(recorded3.kind == .producer)
         #expect(recorded3.startTimestampNanosSinceEpoch == customInstant2.nanosecondsSinceEpoch)
 
-        // Verify span 4: withSpan sync with instant
         let recorded4 = finishedSpans[3]
         #expect(recorded4.operationName == "withSpan-sync-instant")
         #expect(recorded4.kind == .consumer)
         #expect(recorded4.context[TestContextKey.self] == "context1")
         #expect(recorded4.startTimestampNanosSinceEpoch == customInstant3.nanosecondsSinceEpoch)
 
-        // Verify span 5: withSpan sync without instant
         let recorded5 = finishedSpans[4]
         #expect(recorded5.operationName == "withSpan-sync-default")
         #expect(recorded5.kind == .internal)
         #expect(recorded5.context[TestContextKey.self] == "context2")
 
-        // Verify span 6: withSpan sync with instant (alt)
         let recorded6 = finishedSpans[5]
         #expect(recorded6.operationName == "withSpan-sync-instant-alt")
         #expect(recorded6.kind == .server)
 
-        // Verify span 7: withSpan async with instant and isolation
         let recorded7 = finishedSpans[6]
         #expect(recorded7.operationName == "withSpan-async-instant-isolation")
         #expect(recorded7.kind == .client)
         #expect(recorded7.context[TestContextKey.self] == "context1")
 
-        // Verify span 8: withSpan async without instant but with isolation
         let recorded8 = finishedSpans[7]
         #expect(recorded8.operationName == "withSpan-async-default-isolation")
         #expect(recorded8.kind == .producer)
         #expect(recorded8.context[TestContextKey.self] == "context2")
 
-        // Verify span 9: withSpan async with instant and isolation (alt)
         let recorded9 = finishedSpans[8]
         #expect(recorded9.operationName == "withSpan-async-instant-isolation-alt")
         #expect(recorded9.kind == .consumer)
+    }
+
+    @Test("InstrumentationSystem.tracer returns NoOpTracer when nothing is configured")
+    func tracerDefaultsToNoOp() {
+        InstrumentationSystem.bootstrapInternal(nil)
+        #expect(InstrumentationSystem.tracer is NoOpTracer)
+    }
+
+    @Test("InstrumentationSystem.tracer falls back to bootstrap when no scope is entered")
+    func tracerFallsBackToBootstrap() {
+        let testTracer = TestTracer()
+        InstrumentationSystem.bootstrapInternal(testTracer)
+
+        let resolved = InstrumentationSystem.tracer
+        #expect(resolved is TestTracer)
+    }
+
+    // MARK: - LegacyTracer-only discoverability
+
+    @Test("Free withSpan finds a LegacyTracer-only bootstrapped tracer")
+    func freeWithSpanFindsLegacyTracerOnly() {
+        let legacyOnly = LegacyOnlyTestTracer()
+        InstrumentationSystem.bootstrapInternal(legacyOnly)
+
+        withSpan("legacy-op") { _ in }
+
+        #expect(legacyOnly.startedOperationNames == ["legacy-op"])
+    }
+
+    @Test("Free startSpan finds a LegacyTracer-only bootstrapped tracer")
+    func freeStartSpanFindsLegacyTracerOnly() {
+        let legacyOnly = LegacyOnlyTestTracer()
+        InstrumentationSystem.bootstrapInternal(legacyOnly)
+
+        let span = startSpan("legacy-start")
+        span.end()
+
+        #expect(legacyOnly.startedOperationNames == ["legacy-start"])
+    }
+
+    @Test("Modern Tracer in bootstrap takes precedence over LegacyTracer-only in multiplex")
+    func modernTracerWinsOverLegacy() {
+        let legacyOnly = LegacyOnlyTestTracer()
+        let modern = TestTracer()
+        InstrumentationSystem.bootstrapInternal(MultiplexInstrument([legacyOnly, modern]))
+
+        withSpan("multiplex-op") { _ in }
+
+        #expect(modern.spans.count == 1)
+        #expect(legacyOnly.startedOperationNames.isEmpty)
     }
 }
 
 // Test context key for verification
 private enum TestContextKey: ServiceContextKey {
     typealias Value = String
+}
+
+// MARK: - LegacyTracer-only fixture
+//
+// Conforms to ``LegacyTracer`` ONLY (no ``Tracer`` conformance). Used to verify that the free
+// ``withSpan`` / ``startSpan`` resolution chain still discovers a bootstrapped tracer that
+// predates the ``Tracer`` protocol.
+final class LegacyOnlyTestTracer: LegacyTracer, @unchecked Sendable {
+    private(set) var startedOperationNames: [String] = []
+
+    func startAnySpan<Instant: TracerInstant>(
+        _ operationName: String,
+        context: @autoclosure () -> ServiceContext,
+        ofKind kind: SpanKind,
+        at instant: @autoclosure () -> Instant,
+        function: String,
+        file fileID: String,
+        line: UInt
+    ) -> any Tracing.Span {
+        self.startedOperationNames.append(operationName)
+        return NoOpTracer.NoOpSpan(context: context())
+    }
+
+    func forceFlush() {}
+
+    func extract<Carrier, Extract>(_ carrier: Carrier, into context: inout ServiceContext, using extractor: Extract)
+    where Extract: Extractor, Extract.Carrier == Carrier {}
+
+    func inject<Carrier, Inject>(_ context: ServiceContext, into carrier: inout Carrier, using injector: Inject)
+    where Inject: Injector, Inject.Carrier == Carrier {}
 }

@@ -15,6 +15,18 @@ The first step to get metadata propagation and tracing working in your applicati
 A complete [list of swift-distributed-tracing implementations](http://github.com/apple/swift-distributed-tracing) 
 is available in this project's README. Select an implementation you'd like to use and follow its bootstrap steps.
 
+There are two ways to install an instrument:
+
+- ``InstrumentationSystem/bootstrap(_:)`` — process-wide, called once at startup. The classic path; simpler
+  if your app uses a single tracer for its whole lifetime.
+- ``InstrumentationSystem/bootstrap(_:)`` with a ``TaskLocalInstrument`` — same one-shot bootstrap,
+  but the bootstrapped type opts the application into scoped overrides. Scopes are entered via
+  ``TaskLocalInstrument/with(_:_:)`` and let you layer an additional instrument in front of the
+  inner instrument for the duration of a closure. Useful for parallel-safe tests with per-test tracers, or
+  to override the instrument for a specific subsystem. See
+  [Scoping an instrument with TaskLocalInstrument](#Scoping-an-instrument-with-TaskLocalInstrument)
+  later in this guide.
+
 > Note: Since instrumenting an **application** in practice will always need to pull in an existing tracer implementation,
 > in this guide we'll use the community maintained [`swift-otel`](https://github.com/slashmo/swift-otel) 
 > tracer, as an example of how you'd start using tracing in your real applications.
@@ -70,7 +82,7 @@ of propagating certain `ServiceContext` values across process boundaries, withou
 In other words, all tracers are instruments, and the `InstrumentationSystem` works equally for `Instrument`,
 as well as ``Tracer`` implementations.
 
-Our guide focuses on tracing through, so let's continue with that in mind.
+Our guide focuses on tracing though, so let's continue with that in mind.
 
 #### Recommended bootstrap order
 
@@ -85,8 +97,14 @@ Specifically, it is recommended to bootstrap systems in the following order:
 
 This is because tracing systems may attempt to emit logs or metrics about their status etc.
 
+> Important: Bootstrap telemetry as early as possible in process startup — ideally before any application
+> code runs. Any subsystem or object that reads ``InstrumentationSystem/instrument``,
+> ``InstrumentationSystem/tracer``, `Logger`, or `MetricsFactory` during its initialization captures whatever
+> is in scope at that moment, so bootstrapping first ensures those captures see the real backends rather than
+> no-op placeholders. The same principle applies to logging and metrics.
+
 If you intend to use trace identifiers for log correlation (i.e. logging a `trace-id` in every log statement that is part of a trace),
-then don't forget to also configure a swift-lot `MetadataProvider`.
+then don't forget to also configure a swift-log `MetadataProvider`.
 
 A typical bootstrap could look something like this:
 
@@ -141,6 +159,11 @@ InstrumentationSystem.bootstrap(MultiplexInstrument([
 ```
 
 `MultiplexInstrument` will then call out to each instrument it has been initialized with.
+
+> Note: For scoped alternatives to plain `bootstrap` — for example, binding a tracer inside a test or
+> overriding it for a subsystem — bootstrap with ``TaskLocalInstrument`` instead and see
+> [Scoping an instrument with TaskLocalInstrument](#Scoping-an-instrument-with-TaskLocalInstrument)
+> later in this guide, after the span introduction.
 
 ### Introducing Trace Spans
 
@@ -437,6 +460,59 @@ Events usually show up in a in a trace view as points on the timeline (note that
 ![An event during the cook span](makeDinner-zipkin-event)
 
 Events cannot be "failed" or "successful", that is a property of a ``Span``, and they do not have anything that would be equivalent to a log level. When a trace span is recorded and collected, so will all events related to it. In that sense, events are different from log statements, because one can easily change a logger to include the "debug level" log statements, but technically no such concept exists for events (although you could simulate it with attributes).
+
+### Scoping an instrument with TaskLocalInstrument
+
+``TaskLocalInstrument`` wraps any ``Instrument`` and adds a task-local layer of additional members entered
+via ``TaskLocalInstrument/with(_:_:)``. Bootstrap with it once at startup, and any scope entered through
+``TaskLocalInstrument/with(_:_:)`` layers an additional instrument in front of the inner instrument for the
+duration of the closure. No process-global mutation; nested and parallel scopes compose naturally.
+
+```swift
+// Application entry point — single tracer with scoping enabled.
+InstrumentationSystem.bootstrap(TaskLocalInstrument(OTelTracer(configuration: config)))
+try await Application.main()
+
+// Multiple base instruments? Wrap a `MultiplexInstrument` inside.
+InstrumentationSystem.bootstrap(
+    TaskLocalInstrument(MultiplexInstrument([OTelTracer(configuration: config), metricsInstrument]))
+)
+
+// Unit test — parallel-safe, no global mutation.
+@Test func spansAreCaptured() async {
+    let tracer = InMemoryTracer()
+    await TaskLocalInstrument.with(tracer) {
+        await withSpan("op") { _ in }
+    }
+    #expect(tracer.spans.count == 1)
+}
+```
+
+Inside the scope, ``InstrumentationSystem/instrument`` returns the bootstrapped ``TaskLocalInstrument``,
+whose methods walk the scoped layer before deferring to its inner instrument:
+
+- **Span creation**: discovery returns the first ``Tracer`` conformer found while walking scoped members,
+  then descends into the inner instrument. Each ``with(_:_:)`` prepends the layered instrument, so for
+  nested scopes the innermost scope wins. A scoped non-tracer falls through to the next ``Tracer`` further
+  along.
+- **Propagation** (`inject` / `extract`): scoped members iterate forward, then the inner instrument runs
+  last. The inner instrument is the last writer for overlapping `ServiceContext` or carrier keys, so the
+  tracer that owns the bootstrap keeps ownership of its context and outgoing headers like `traceparent`.
+  Among nested scopes alone (with no inner writer for a given key), the outermost scope is the last writer.
+
+Wrapping per-request inside a web framework is a sharper tool: any middleware running before the
+``with(_:_:)`` block (health checks, request-ID middleware) uses a different instrument than your handler.
+Wrap at the very top of the request lifecycle, or not at all — except when the instrument genuinely has to
+differ per request (for example, augmenting `extract` with per-tenant context).
+
+> Warning: `Task.detached` does not inherit task-local values. A detached task sees only the inner
+> instrument of any reachable ``TaskLocalInstrument``, not any scoped layer. If scoped instrumentation is
+> required inside a detached task, wrap its body in ``TaskLocalInstrument/with(_:_:)`` explicitly.
+
+**When plain `bootstrap` of a non-scoping instrument is still the right answer:** if your application
+installs a single tracer at startup and never needs to override it per scope or per test, bootstrap with the
+tracer directly (or with ``MultiplexInstrument`` for multiple). ``TaskLocalInstrument`` pays off for
+parallel-safe testing, per-subsystem overrides, and scoped propagation augmentation.
 
 ### Integrations
 

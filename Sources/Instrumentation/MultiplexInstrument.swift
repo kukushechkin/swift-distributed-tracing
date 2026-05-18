@@ -2,7 +2,7 @@
 //
 // This source file is part of the Swift Distributed Tracing open source project
 //
-// Copyright (c) 2020-2023 Apple Inc. and the Swift Distributed Tracing project authors
+// Copyright (c) 2020-2025 Apple Inc. and the Swift Distributed Tracing project authors
 // Licensed under Apache License v2.0
 //
 // See LICENSE.txt for license information
@@ -29,9 +29,23 @@ public struct MultiplexInstrument {
     }
 }
 
-extension MultiplexInstrument {
+extension MultiplexInstrument: _InstrumentContainer {
+    /// Walks the multiplex looking for the first member that satisfies `predicate`, recursing into any
+    /// nested ``_InstrumentContainer`` members.
+    ///
+    /// A nested container is never itself a candidate (it fails most useful predicates like `is Tracer`);
+    /// the walk descends into it so conformers deeper in the tree stay reachable.
     func firstInstrument(where predicate: (Instrument) -> Bool) -> Instrument? {
-        self.instruments.first(where: predicate)
+        for member in self.instruments {
+            if let container = member as? _InstrumentContainer {
+                if let found = container.firstInstrument(where: predicate) {
+                    return found
+                }
+            } else if predicate(member) {
+                return member
+            }
+        }
+        return nil
     }
 }
 
