@@ -78,10 +78,12 @@ InstrumentationSystem.bootstrap(
 }
 ```
 
-The opt-in is the bootstrap. An application that bootstraps a plain ``Instrument`` or ``MultiplexInstrument``
-pays nothing on any hot path — the task-local read lives inside ``TaskLocalInstrument``'s methods, so it's
-only consulted when the bootstrap chain reaches one. Apps that want scoping bootstrap with
-``TaskLocalInstrument``, optionally wrapping a ``MultiplexInstrument`` for multiple base members.
+The opt-in is the bootstrap. An application that bootstraps a plain ``Instrument`` or
+``MultiplexInstrument`` — or doesn't bootstrap at all and runs on the default ``NoOpInstrument`` — pays
+nothing on any hot path: no task-local read on `inject`, `extract`, or span resolution. The task-local
+read lives inside ``TaskLocalInstrument``'s methods, so it's only consulted when the bootstrap chain
+actually reaches one. Apps that want scoping bootstrap with ``TaskLocalInstrument``, optionally wrapping
+a ``MultiplexInstrument`` for multiple base members.
 
 ### Detailed design
 
@@ -219,10 +221,17 @@ holding its own task-local for typed discovery. Rejected because:
 #### Replace semantics by default
 
 Considered: have ``TaskLocalInstrument/with(_:_:)`` shadow the outer scoped layer instead of layering over
-it. Rejected because it introduces a silent-NoOp failure mode — an app bootstraps a ``Tracer``, a scope
-binds a pure propagator, and spans vanish because the scope's instrument is not a ``Tracer`` and the inner
-tracer is shadowed. Layered prepend keeps inner tracers reachable while still letting an inner scope win
-for span emission. A `with(replacing:_:)` variant is captured under future directions.
+it. Rejected because:
+
+- **Silent-NoOp failure mode.** An app bootstraps a ``Tracer``, a scope binds a pure propagator, and spans
+  vanish because the scope's instrument is not a ``Tracer`` and the inner tracer is shadowed.
+- **Two lookup misses before NoOp.** Replace requires consulting the task-local and, on miss, falling back
+  to a separate inner-instrument lookup — both can miss before the system returns NoOp. Keeping the NoOp
+  path light when nothing has been bootstrapped or scoped is a design goal; layered prepend folds both
+  checks into a single walk where an empty scoped layer is a near-zero iteration before deferring to inner.
+
+Layered prepend keeps inner tracers reachable while still letting an inner scope win for span emission.
+A `with(replacing:_:)` variant is captured under future directions.
 
 #### Task-local ``Tracer`` only, leave ``Instrument`` global
 
