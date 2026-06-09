@@ -32,14 +32,14 @@ extension InstrumentationSystem {
 }
 
 /// All tests that touch `InstrumentationSystem` global state run here under a single `.serialized` suite.
-/// Each test's `init` resets the bootstrap to a baseline `TaskLocalInstrument()` (which wraps
-/// `NoOpInstrument`), so individual tests can either mutate the bootstrap (and rely on the next `init`
-/// to reset) or just enter scopes via `TaskLocalInstrument.with(_:_:)`.
+/// Each test's `init` resets the bootstrap to `NoOpInstrument`, so individual tests can either mutate the
+/// bootstrap (and rely on the next `init` to reset) or just enter scopes via
+/// `InstrumentationSystem.withInstrument(_:_:)`.
 @Suite("InstrumentationSystem", .serialized)
 struct InstrumentationSystemTests {
 
     init() {
-        InstrumentationSystem.bootstrapInternal(TaskLocalInstrument())
+        InstrumentationSystem.bootstrapInternal(nil)
     }
 
     // MARK: - Bootstrap discovery

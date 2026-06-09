@@ -1,256 +1,201 @@
 # SDT-0001: task-local instrument
 
-A wrapper instrument that adds task-local scoping on top of any inner ``Instrument``, giving applications
-opt-in scoped overrides without process-global mutation — and without taxing apps that don't need scoping.
+Adds `withInstrument(_:_:)` — a free function that binds an `Instrument` for a closure's task
+scope. Applications choose between two mutually exclusive modes at startup: install once per process
+via the existing `bootstrap`, or per task scope via `withInstrument`.
 
 ## Overview
 
 - Proposal: SDT-0001
 - Author(s): [Vladimir Kukushkin](https://github.com/kukushechkin)
 - Status: **Awaiting Review**
-- Issue: TBD
+- Issue: https://github.com/apple/swift-distributed-tracing/issues/168
 - Implementation: TBD
-- Feature flag: none
-
-### Introduction
-
-This proposal adds ``TaskLocalInstrument`` and its static ``TaskLocalInstrument/with(_:_:)`` method.
-The new type wraps any ``Instrument`` and adds a task-local layer of additional members entered via
-``TaskLocalInstrument/with(_:_:)``. Applications that want scoped overrides bootstrap with this type;
-applications that don't are unaffected.
 
 ### Motivation
 
-``InstrumentationSystem/bootstrap(_:)`` installs an instrument **once** per process. From that point on every
-free `withSpan` / `startSpan` call and every read of ``InstrumentationSystem/instrument`` resolves through
-that single instrument. This works well for "one tracer for the whole application", but the one-shot,
-process-wide constraint blocks two cases that matter in practice:
+Today the unit of instrument selection is the **process**: one instrument is installed at startup
+and every `withSpan` for the lifetime of the process emits through it. This blocks any case that
+wants a different tracer for a subset of work:
 
-- **Parallel unit tests with per-test instruments.** Tests asserting on captured spans need an in-memory
-  instrument scoped to the test, but `bootstrap` can only be called once per process (a second call crashes)
-  and `bootstrapInternal` is `internal`. The workarounds are to serialize every span-emitting test or to
-  thread a `Tracer` parameter through every library's public API — neither is good.
-
-- **No scoped overrides.** An application cannot bind a different instrument for a subset of work. Routing
-  spans from a subsystem through a local-only tracer for debugging, or augmenting `extract` per request with
-  a tenant-specific propagator, has no clean path today.
-
-```swift
-public struct HTTPServer {
-    public func handle(_ request: HTTPRequest) async throws -> HTTPResponse {
-        var context = ServiceContext.topLevel
-        InstrumentationSystem.instrument.extract(request.headers, into: &context, using: HTTPHeaderExtractor())
-        return try await ServiceContext.$current.withValue(context) {
-            try await withSpan("http.request") { _ in try await route(request) }
-        }
-    }
-}
-```
-
-This library emits spans through the process-wide bootstrap — which works until any caller wants to scope
-a different instrument for a subset of work: a subsystem routing through a debug exporter, a request
-augmenting its propagation context, or a test capturing spans without mutating the state every other test
-shares.
+- **Parallel unit tests with per-test tracers.** A process-wide install can happen only once; tests
+  that capture spans must serialize or thread a `Tracer` parameter through every library API.
+- **Per-module / per-subsystem / per-request overrides.** No way to route a single subsystem through a different
+  tracer for debugging, sampling overrides, tenant selection, or local-only export.
 
 ### Proposed solution
 
-Introduce ``TaskLocalInstrument`` — a wrapper that carries an internal task-local layer of additional
-members in front of an inner instrument. Applications that want scoped overrides bootstrap with it;
-``TaskLocalInstrument/with(_:_:)`` enters scopes that are visible to every reachable
-``TaskLocalInstrument`` until the closure returns.
+Introduce ``withInstrument(_:_:)``: a task-local that binds the active instrument for the duration
+of a closure. Applications choose one of two modes at startup:
+
+- **Bootstrap mode** — call ``bootstrap(_:)`` once at startup. ``withInstrument(_:_:)`` is a no-op
+  in this mode (the closure runs against the bootstrapped instrument).
+- **Scoped mode** — never call ``bootstrap(_:)``; wrap the program entry (and per-test, per-module,
+  per-request closures) in ``withInstrument(_:_:)``. Nested scopes shadow their outer, the innermost
+  is in effect.
+
+**Bootstrap takes priority over the task-local** at runtime. ``withInstrument(_:_:)`` is library-safe
+to call regardless of the application's mode: in bootstrap mode it is a silent no-op (the closure
+runs against the bootstrapped instrument), so a library that uses ``withInstrument(_:_:)`` internally
+won't break an application that has bootstrapped. The reverse — ``bootstrap(_:)`` called while a
+``withInstrument(_:_:)`` scope is active in the current task — traps; bootstrap is meant to be the
+first thing in `main`, before any scope is entered. **Libraries must not call ``bootstrap(_:)``** —
+that decision belongs exclusively to the application.
 
 ```swift
-// Single tracer with scoping enabled.
-InstrumentationSystem.bootstrap(TaskLocalInstrument(OTelTracer(configuration: config)))
+// --- Scoped mode: wrap the entry point. Allows nested overrides. Do NOT also call bootstrap.
+@main
+struct Service {
+    static func main() async throws {
+        try await withInstrument(OTelTracer(configuration: config)) {
+            try await Application.run()
+        }
+    }
+}
 
-// Multiple base instruments with scoping — wrap a `MultiplexInstrument`.
-InstrumentationSystem.bootstrap(
-    TaskLocalInstrument(MultiplexInstrument([OTelTracer(configuration: config), metricsInstrument]))
-)
+// --- Bootstrap mode (no overrides anywhere in the process):
+//   InstrumentationSystem.bootstrap(OTelTracer(configuration: config))
+//   try await Application.run()
 
-// Unit test — parallel-safe, no global mutation.
+// Per-test (test target stays in scoped mode — never bootstraps):
 @Test func spansAreCaptured() async {
     let tracer = InMemoryTracer()
-    await TaskLocalInstrument.with(tracer) {
-        await withSpan("op") { _ in }   // emits into `tracer`
+    await withInstrument(tracer) {
+        await withSpan("op") { _ in }
     }
     #expect(tracer.spans.count == 1)
 }
-```
 
-The opt-in is the bootstrap. An application that bootstraps a plain ``Instrument`` or
-``MultiplexInstrument`` — or doesn't bootstrap at all and runs on the default ``NoOpInstrument`` — pays
-nothing on any hot path: no task-local read on `inject`, `extract`, or span resolution. The task-local
-read lives inside ``TaskLocalInstrument``'s methods, so it's only consulted when the bootstrap chain
-actually reaches one. Apps that want scoping bootstrap with ``TaskLocalInstrument``, optionally wrapping
-a ``MultiplexInstrument`` for multiple base members.
+// Per-module — route a subsystem through a debug tracer.
+await withInstrument(debugTracer) { await runSubsystem() }
+
+// Per-request — select between pre-built tracers.
+let tenantTracer = tenantTracers[tenantID] ?? defaultTracer
+try await withInstrument(tenantTracer) { try await handleRequest() }
+```
 
 ### Detailed design
 
-#### `TaskLocalInstrument`
-
-A new public type alongside ``MultiplexInstrument``. Conforms to ``Instrument``, has a `Sendable`-friendly
-internal `@TaskLocal` for the layered members, and exposes a static `with(_:_:)` for entering scopes.
-
-```swift
-@available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *)
-public struct TaskLocalInstrument: Sendable {
-    /// Wrap an inner instrument with task-local scoping.
-    ///
-    /// - Parameter inner: The instrument to wrap. Defaults to ``NoOpInstrument`` so callers that only need
-    ///   scoping (typically tests) can write `TaskLocalInstrument()` without picking a base.
-    public init(_ inner: any Instrument = NoOpInstrument())
-
-    /// Layer `instrument` in front of any currently scoped members for the duration of the closure.
-    ///
-    /// Inside the closure, every ``TaskLocalInstrument`` instance reachable from
-    /// ``InstrumentationSystem/instrument`` walks the scoped layer before descending into its inner
-    /// instrument. The newly layered instrument is prepended, so for nested ``with(_:_:)`` calls the
-    /// innermost scope wins for discovery (``InstrumentationSystem/tracer``, free-function `withSpan` /
-    /// `startSpan`). Propagation (`inject` / `extract`) iterates scoped forward then defers to `inner`,
-    /// so the inner instrument is the last writer for overlapping `ServiceContext` or carrier keys; among
-    /// nested scopes alone the outermost scope is the last writer.
-    ///
-    /// > Warning: `Task.detached` does not inherit task-local values. A detached task sees only `inner`
-    /// > of any reachable ``TaskLocalInstrument``. If scoped instrumentation is required inside a detached
-    /// > task, wrap its body in ``with(_:_:)`` explicitly.
-    ///
-    /// - Parameters:
-    ///   - instrument: The instrument to layer in front of any currently scoped members.
-    ///   - operation: The closure to run with the layered instrument bound.
-    /// - Returns: The value returned by the closure.
-    public static func with<Result, Failure: Error>(
-        _ instrument: any Instrument,
-        _ operation: () throws(Failure) -> Result
-    ) throws(Failure) -> Result
-
-    /// Async variant of ``with(_:_:)``. See that function for full documentation.
-    #if compiler(>=6.2)
-    public nonisolated(nonsending) static func with<Result, Failure: Error>(
-        _ instrument: any Instrument,
-        _ operation: () async throws(Failure) -> Result
-    ) async throws(Failure) -> Result
-    #else
-    public static func with<Result, Failure: Error>(
-        _ instrument: any Instrument,
-        _ operation: () async throws(Failure) -> Result
-    ) async throws(Failure) -> Result
-    #endif
-}
-```
-
-`Instrument` conformance iterates scoped members first, then defers to `inner`. The inner instrument runs
-last and wins for overlapping `ServiceContext` or carrier keys — which keeps the bootstrapped tracer in
-charge of `traceparent` and similar fields it owns.
+Two free-function overloads — sync and async — bind `instrument` as the task-local for the duration
+of `operation`. The task-local is `@TaskLocal fileprivate static var _taskLocalInstrument:
+(any Instrument)?` on ``InstrumentationSystem``; the free functions live in the same file and read
+it via the synthesized `$_taskLocalInstrument` projection.
 
 ```swift
-extension TaskLocalInstrument: Instrument {
-    public func inject<Carrier, Inject>(
-        _ context: ServiceContext,
-        into carrier: inout Carrier,
-        using injector: Inject
-    ) where Inject: Injector, Carrier == Inject.Carrier
+/// Replace the active ``Instrument`` with `instrument` for the duration of the closure.
+///
+/// Inside the closure, ``InstrumentationSystem/instrument``, ``InstrumentationSystem/_findInstrument(where:)``,
+/// and the `tracer` / free-function `withSpan` / `startSpan` overloads (defined in the `Tracing`
+/// module) resolve to `instrument`. Nested ``withInstrument(_:_:)`` calls each shadow their outer
+/// scope; the innermost scope is the only one in effect.
+///
+/// > Note: ``withInstrument(_:_:)`` is library-safe to call regardless of the application's mode.
+/// > If ``InstrumentationSystem/bootstrap(_:)`` has been called, the bootstrap takes priority — the
+/// > scoped instrument has no effect and the closure runs as-is. This way a library that uses
+/// > ``withInstrument(_:_:)`` internally doesn't break applications that bootstrap.
+///
+/// > Note: Scoping a non-``Tracer`` ``Instrument`` (a propagator-only) inside a
+/// > ``withInstrument(_:_:)`` scope makes ``InstrumentationSystem/tracer`` resolve to ``NoOpTracer``
+/// > for the duration — span emission is silenced just as it is when
+/// > ``InstrumentationSystem/bootstrap(_:)`` installs a propagator-only. Use a ``MultiplexInstrument``
+/// > containing a ``Tracer`` if you want both span emission and additional propagation.
+///
+/// > Warning: `Task.detached` does not inherit task-local values. In bootstrap mode a detached task
+/// > sees the bootstrap (reads check bootstrap first); in scoped mode it sees ``NoOpInstrument``. If a
+/// > scoped instrument is required inside a detached task, wrap its body in ``withInstrument(_:_:)``
+/// > explicitly.
+///
+/// - Parameters:
+///   - instrument: The instrument to install for the duration of the closure.
+///   - operation: The closure to run with the scoped instrument bound.
+/// - Returns: The value returned by the closure.
+@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+public func withInstrument<Result, Failure: Error>(
+    _ instrument: any Instrument,
+    _ operation: () throws(Failure) -> Result
+) throws(Failure) -> Result
 
-    public func extract<Carrier, Extract>(
-        _ carrier: Carrier,
-        into context: inout ServiceContext,
-        using extractor: Extract
-    ) where Extract: Extractor, Carrier == Extract.Carrier
-}
+#if compiler(>=6.2)
+/// Async variant of ``withInstrument(_:_:)``. See that function for full documentation.
+///
+/// `nonisolated(nonsending)` mirrors the pre-6.2 default (caller-isolated, no executor hop on entry).
+/// Do not unify with the pre-6.2 branch — without this annotation under 6.2, the function would gain
+/// an implicit hop into the global executor.
+///
+/// - Parameters:
+///   - instrument: The instrument to install for the duration of the closure.
+///   - operation: The async closure to run with the scoped instrument bound.
+/// - Returns: The value returned by the closure.
+@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+public nonisolated(nonsending) func withInstrument<Result, Failure: Error>(
+    _ instrument: any Instrument,
+    _ operation: () async throws(Failure) -> Result
+) async throws(Failure) -> Result
+#else
+/// Async variant of ``withInstrument(_:_:)``. See that function for full documentation.
+///
+/// - Parameters:
+///   - instrument: The instrument to install for the duration of the closure.
+///   - operation: The async closure to run with the scoped instrument bound.
+/// - Returns: The value returned by the closure.
+//
+// Pre-6.2 toolchains predate SE-0461. The plain `func` here matches the pre-SE-0461 default
+// (caller-isolated, no executor hop on entry), so the missing `nonisolated(nonsending)` is
+// intentional, not an oversight — do not unify the branches.
+@available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)
+public func withInstrument<Result, Failure: Error>(
+    _ instrument: any Instrument,
+    _ operation: () async throws(Failure) -> Result
+) async throws(Failure) -> Result
+#endif
 ```
+
+#### Resolution
+
+``InstrumentationSystem.instrument`` and `InstrumentationSystem._findInstrument(where:) ` resolve in this order:
+
+1. **Bootstrap slot first.** If ``bootstrap(_:)`` has been called, return its value. The task-local
+   is never read on this path.
+2. **Task-local fallback.** Otherwise, return the active ``withInstrument(_:_:)`` scope, or
+   ``NoOpInstrument`` if no scope is active.
 
 ### API stability
 
-- **Free `withSpan` / `startSpan` callers:** no change. Applications that don't bootstrap with
-  ``TaskLocalInstrument`` see no behavioral change.
-- **``InstrumentationSystem/instrument`` / ``InstrumentationSystem/tracer`` callers:** signatures unchanged.
-  The accessors do not consult any task-local; they return the bootstrapped instrument directly. Behavior
-  changes only when the bootstrap is (or contains) a ``TaskLocalInstrument`` and a scope is active.
-- **``InstrumentationSystem/legacyTracer``:** unchanged. Still walks the bootstrapped instrument.
-- **`Instrument` and `Tracer` implementations:** no new protocol requirements.
-- **``LegacyTracer``-only implementations:** still discoverable, including when wrapped by a
-  ``TaskLocalInstrument`` or layered into a scope.
-- **``MultiplexInstrument``:** no public API change. ``MultiplexInstrument/firstInstrument(where:)`` is
-  internal; its recursion now descends through the internal `_InstrumentContainer` protocol, which both
-  multiplex types conform to.
-- **``InstrumentationSystem/bootstrap(_:)`` users:** unchanged and not deprecated. The plain bootstrap
-  remains the natural choice for a single process-wide tracer that never needs scoping.
+- **No protocol changes; existing public surface unchanged.** ``Instrument``, ``Tracer``, and
+  ``MultiplexInstrument`` retain their signatures and behavior. ``InstrumentationSystem.instrument``,
+  ``InstrumentationSystem.tracer``, and ``InstrumentationSystem.legacyTracer`` keep their
+  signatures and stay source-compatible. Their *resolved value* depends on the application's chosen
+  mode (Bootstrap or Scoped).
+- **Bootstrap mode** (the path existing users follow) — `withSpan` performs one rwlock-guarded read
+  per call to resolve the bootstrapped instrument; the task-local is never read on this path. Same
+  cost shape as before this proposal.
 
 ### Future directions
 
-**Explicit `tracer:` overloads on `withSpan` / `startSpan`.** For hot-path code that creates many spans, a
-generic `tracer:` overload could accept a concrete tracer and return the concrete `Span` associated type,
-bypassing existential dispatch.
-
-**Opt-in replace semantics.** A paired variant such as ``TaskLocalInstrument/with(replacing:_:)`` that
-shadows the outer scoped layer (and `inner`, optionally) instead of layering over them — for callers who
-want full isolation, including overriding `traceparent` writes per request.
+**Explicit `tracer:` overloads on `withSpan` / `startSpan`.** For hot-path code that creates many
+spans, a generic `tracer:` overload could accept a concrete tracer and return the concrete `Span`
+associated type, bypassing existential dispatch and the resolution lookup entirely.
 
 ### Alternatives considered
 
-#### Free function `withInstrument(merging:_:)` in core
+#### A special Instrument type handling structured instruments inside it
 
-A free `withInstrument(merging:_:)` with a task-local slot directly on ``InstrumentationSystem``, so every
-read of ``InstrumentationSystem/instrument`` consults the task-local before falling back to the bootstrap.
-Rejected because:
+One of the alternatives considered was a special instrument holding the task-local variable providing
+extra API surface similar to `TaskLocalInstrument.withInstrument(scopedInstrument){}`.
+The benefit of this approach is it is purely additive opt-in from the application point of view.
+However, this special instrument type must be bootstrapped and if not, the whole API surface becomes
+noop.
 
-- It taxes apps that don't use scoping. Every read of ``InstrumentationSystem/instrument`` (and every free
-  `withSpan` / `startSpan`) does a task-local read whether or not scoping is in play.
-- It puts API surface in the core ``Instrumentation`` package whose only purpose is the new mechanism,
-  rather than offering a self-contained instrument type that participates through the existing composition
-  rules.
+#### Task-local instrument to have higher priority than the bootstrapped one
 
-The wrapper pushes the cost behind an opt-in: only apps that bootstrap ``TaskLocalInstrument`` (or compose
-one inside a regular ``MultiplexInstrument``) pay the task-local read, and even then only inside that
-type's methods.
+Frame the task-local API as scoped override for the bootstrapped instrument. Rejected, becuase
+every existing `bootstrap` user will now pay task-local check in every span.
 
-#### Wrapper types layered onto each protocol — `ScopedInstrument`, `ScopedTracer<U>`, `ScopedLegacyTracer`
+#### Trap on `withInstrument(_:_:)` after `bootstrap(_:)`
 
-Considered: provide one wrapper per instrument category — ``ScopedInstrument: Instrument``,
-``ScopedTracer<U: Tracer>: Tracer where Span = U.Span``, ``ScopedLegacyTracer: LegacyTracer`` — each
-holding its own task-local for typed discovery. Rejected because:
-
-- ``ScopedTracer<U>`` is generic over a concrete `U`; its ``with(_:_:)`` only accepts instances of `U`.
-  This kills the test-isolation use case, where tests need to substitute a different concrete tracer
-  (an in-memory implementation) for the production tracer.
-- Routing test isolation through ``ScopedLegacyTracer`` works but forces users into the deprecated
-  ``LegacyTracer`` / `any Span` path even when their production tracer is modern.
-- Three new public types plus a discoverability hook for the wrappers, vs. one new public type with
-  composition through existing rules.
-
-#### Replace semantics by default
-
-Considered: have ``TaskLocalInstrument/with(_:_:)`` shadow the outer scoped layer instead of layering over
-it. Rejected because:
-
-- **Silent-NoOp failure mode.** An app bootstraps a ``Tracer``, a scope binds a pure propagator, and spans
-  vanish because the scope's instrument is not a ``Tracer`` and the inner tracer is shadowed.
-- **Two lookup misses before NoOp.** Replace requires consulting the task-local and, on miss, falling back
-  to a separate inner-instrument lookup — both can miss before the system returns NoOp. Keeping the NoOp
-  path light when nothing has been bootstrapped or scoped is a design goal; layered prepend folds both
-  checks into a single walk where an empty scoped layer is a near-zero iteration before deferring to inner.
-
-Layered prepend keeps inner tracers reachable while still letting an inner scope win for span emission.
-A `with(replacing:_:)` variant is captured under future directions.
-
-#### Task-local ``Tracer`` only, leave ``Instrument`` global
-
-Rejected because it leaves distributed tracing half-configured: `withSpan` would resolve through task-local
-but ``InstrumentationSystem/instrument`` — every boundary-crossing library's `extract` / `inject` accessor —
-would still go through the global bootstrap. A test would capture spans but fail to read incoming trace IDs
-from headers.
-
-#### Expose `bootstrapInternal` publicly for tests
-
-Rejected because it addresses only the testing half of the motivation and preserves the same one-shot,
-process-global mutation model. Parallel tests would still race over one slot, and library authors would
-still have no way to scope an instrument per request, tenant, or middleware.
-
-#### Pass the instrument to the closure
-
-`TaskLocalInstrument.with(instrument) { instrument in ... }` instead of
-`TaskLocalInstrument.with(instrument) { ... }`.
-
-Rejected because library code typically uses ``InstrumentationSystem/instrument`` and `withSpan` /
-`startSpan` rather than calling methods on the instrument directly. Passing it to the closure would
-encourage direct usage over the free-function API.
+Symmetric with the trap on `bootstrap(_:)` during a scope: if you call ``withInstrument(_:_:)`` after
+``bootstrap(_:)``, fail loudly. Rejected because it makes ``withInstrument(_:_:)`` library-unsafe — a
+library that uses it internally would crash any application that has bootstrapped, regardless of
+whether the application asked for the library's scoping behavior or not. The chosen design (silent
+no-op) preserves the property that adding a `withInstrument` call to a library cannot crash a
+downstream application; the closure runs against the bootstrapped instrument instead.

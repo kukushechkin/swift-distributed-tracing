@@ -398,14 +398,16 @@ public final class ConnectionPool {
 }
 ```
 
-This is fine — and sometimes desirable — for applications that bootstrap tracing globally at startup and never
-override it, or when you intentionally want to pin a specific tracer to a long-lived object regardless of any
-caller's scope. The trade-off is that callers running inside a ``TaskLocalInstrument/with(_:_:)``
-scope don't influence which tracer the object uses; the captured tracer takes precedence. Capturing also
-requires that tracing is bootstrapped before the object is constructed (see the bootstrap-ordering note in
+This is fine — and sometimes desirable — for applications that bootstrap tracing globally at startup
+and never override it, or when you intentionally want to pin a specific tracer to a long-lived object
+regardless of any caller's scope. The trade-off is that in scoped mode, callers running inside a
+``withInstrument(_:_:)`` scope don't influence which tracer the object uses;
+the captured tracer takes precedence. Capturing also requires that the global default tracer is
+available before the object is constructed (see the bootstrap-ordering note in
 <doc:TraceYourApplication>).
 
-**Per-call resolution** resolves fresh on every operation, honoring the caller's current task-local scope.
+**Per-call resolution** resolves fresh on every operation, honoring the caller's current
+mode-specific resolution path.
 
 ```swift
 public final class ConnectionPool {
@@ -417,20 +419,20 @@ public final class ConnectionPool {
 }
 ```
 
-This is what the free-function `withSpan` / `startSpan` overloads do internally. Callers who scope a different
-tracer (via ``TaskLocalInstrument/with(_:_:)`` against a bootstrapped
-``TaskLocalInstrument``) get the scoped tracer; callers running under a non-scoping bootstrap get
-that tracer; neither has to know or care. It's the approach most generic instrumentation wants. Pick the
-approach that matches the behavior you want to offer, and document it — callers should know whether they can
-influence your library's instrument by scoping one around their call or not. The same choice applies to
+This is what the free-function `withSpan` / `startSpan` overloads do internally. In bootstrap mode,
+callers always get the bootstrapped tracer. In scoped mode, callers running inside a
+``withInstrument(_:_:)`` get that scope's instrument; callers outside any scope
+get ``NoOpInstrument``. It's the approach most generic instrumentation wants — neither the library
+nor the caller has to know which mode the application picked. Pick the approach that matches the
+behavior you want to offer, and document it — callers should know whether they can influence your
+library's instrument by scoping one around their call or not. The same choice applies to
 ``InstrumentationSystem/instrument``.
 
 #### Testing your library's instrumentation
 
-``TaskLocalInstrument/with(_:_:)`` is the recommended way to test span emission and context
-propagation from a library without touching the process-wide bootstrap. The test target bootstraps a
-``TaskLocalInstrument`` once; each test then layers its own in-memory tracer on top. Tests can run
-in parallel without serialization or global-state cleanup.
+``withInstrument(_:_:)`` is the recommended way to test span emission and context
+propagation from a library without touching the process-wide bootstrap. Tests can run in parallel without
+serialization or global-state cleanup — no bootstrap is required.
 
 ```swift
 import Testing
@@ -439,17 +441,19 @@ import InMemoryTracing
 
 @Test func emitsExpectedSpan() async throws {
     let tracer = InMemoryTracer()
-    await TaskLocalInstrument.with(tracer) {
+    await withInstrument(tracer) {
         await MyLibrary().doWork()
     }
     #expect(tracer.spans.map(\.operationName) == ["my-library.do-work"])
 }
 ```
 
-Because ``TaskLocalInstrument/with(_:_:)`` layers in front of the bootstrapped wrapper's inner instrument,
-a test can assert on spans even if the test target's bootstrap has a baseline tracer — the test's in-memory
-tracer captures the emission first. For propagation tests, call `InstrumentationSystem.instrument.inject(...)` /
-`.extract(...)` inside the scope and assert on the carrier / context the way your production code does.
+Because ``withInstrument(_:_:)`` is the only instrument in effect for the
+duration of the scope (the test target stays in scoped mode — never calls ``bootstrap(_:)``), tests
+can assert on spans regardless of what (if anything) other tests do. Tests run in parallel without
+serialization or global-state cleanup. For propagation tests, call
+`InstrumentationSystem.instrument.inject(...)` / `.extract(...)` inside the scope and assert on the
+carrier / context the way your production code does.
 
-See <doc:TraceYourApplication#Scoping-an-instrument-with-TaskLocalInstrument> for the full
-semantics, including how scoped and inner instruments interact for overlapping keys.
+See <doc:TraceYourApplication#Scoping-a-tracer-with-withInstrument> for the full semantics, including
+how to compose multiple cross-cutting tools within a scope via ``MultiplexInstrument``.

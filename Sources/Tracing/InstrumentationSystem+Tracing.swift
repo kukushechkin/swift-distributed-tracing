@@ -18,14 +18,13 @@
 extension InstrumentationSystem {
     /// Returns the current ``Tracer``, derived from ``InstrumentationSystem/instrument``.
     ///
-    /// Walks the bootstrapped instrument, descending into ``MultiplexInstrument`` and
-    /// ``TaskLocalInstrument`` members, and returns the first conformer to ``Tracer``. Returns
-    /// ``NoOpTracer`` if no conforming instrument is found.
+    /// Inside a ``withInstrument(_:_:)`` scope, walks the scoped instrument
+    /// (recursing through any ``MultiplexInstrument`` members) and returns the first ``Tracer`` conformer;
+    /// returns ``NoOpTracer`` if the scoped instrument doesn't expose one. Outside any scope, walks the
+    /// bootstrap the same way. The scoped instrument fully replaces the bootstrap during a scope — there
+    /// is no fall-through.
     ///
-    /// When the bootstrap is a ``TaskLocalInstrument``, scoped members entered via
-    /// ``TaskLocalInstrument/with(_:_:)`` are walked first.
-    ///
-    /// - Returns: The current ``Tracer``, or ``NoOpTracer`` if none is configured.
+    /// - Returns: The current ``Tracer``, or ``NoOpTracer`` if none is reachable.
     public static var tracer: any Tracer {
         let found: (any Tracer)? =
             (self._findInstrument(where: { $0 is (any Tracer) }) as? (any Tracer))
@@ -39,6 +38,10 @@ extension InstrumentationSystem {
     /// deprecated ``LegacyTracer`` protocol remain discoverable. Walks the bootstrapped instrument a single
     /// time, preferring a modern ``Tracer`` conformer and falling back to the first ``LegacyTracer``-only
     /// conformer encountered.
+    ///
+    /// Inside a ``withInstrument(_:_:)`` scope the legacy-only fallback can fire
+    /// only if the scoped instrument is a ``LegacyTracer``-only conformer. A scoped modern ``Tracer``
+    /// (the common case) matches the first branch directly.
     internal static var _legacyOrModernTracer: any LegacyTracer {
         var firstLegacyOnly: (any LegacyTracer)?
         let modernMatch = self._findInstrument(where: { instrument in
@@ -58,9 +61,9 @@ extension InstrumentationSystem {
 
     /// Returns the ``Tracer`` resolved through the current ``InstrumentationSystem/instrument``.
     ///
-    /// Walks the bootstrapped instrument, descending into ``MultiplexInstrument`` and
-    /// ``TaskLocalInstrument`` members, and returns the first conformer to ``LegacyTracer``.
-    /// Returns ``NoOpTracer`` if none is found.
+    /// Inside a ``withInstrument(_:_:)`` scope, walks the scoped instrument and
+    /// returns the first ``LegacyTracer`` conformer; outside any scope, walks the bootstrap and returns
+    /// the first ``LegacyTracer`` conformer (or ``NoOpTracer`` if none).
     ///
     /// - Returns: A ``Tracer`` if one is reachable from the current instrument, otherwise ``NoOpTracer``.
     @available(*, deprecated, message: "prefer tracer")
