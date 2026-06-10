@@ -22,18 +22,18 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../"),
-        .package(url: "https://github.com/ordo-one/package-benchmark.git", from: "1.22.0"),
+        .package(url: "https://github.com/ordo-one/benchmark.git", from: "1.34.0"),
     ],
     targets: [
         .executableTarget(
             name: "TracingBenchmarks",
             dependencies: [
-                .product(name: "Benchmark", package: "package-benchmark"),
+                .product(name: "Benchmark", package: "benchmark"),
                 .product(name: "Tracing", package: "swift-distributed-tracing"),
             ],
             path: "Benchmarks/TracingBenchmarks",
             plugins: [
-                .plugin(name: "BenchmarkPlugin", package: "package-benchmark")
+                .plugin(name: "BenchmarkPlugin", package: "benchmark")
             ]
         )
     ]

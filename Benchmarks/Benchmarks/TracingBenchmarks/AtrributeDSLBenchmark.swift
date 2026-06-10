@@ -17,15 +17,20 @@ import Tracing
 
 let benchmarks: @Sendable () -> Void = {
     let defaultMetrics: [BenchmarkMetric] = [
-        .mallocCountTotal
+        .mallocCountTotal,
+        .instructions
     ]
+    let iterations = 100000
+    let scalingFactor: BenchmarkScalingFactor = .one
+    let timeUnit: BenchmarkTimeUnits = .nanoseconds
 
     Benchmark(
         "NoopTracing.startSpan_endSpan",
         configuration: .init(
             metrics: defaultMetrics,
-            timeUnits: .nanoseconds,
-            scalingFactor: .mega
+            timeUnits: timeUnit,
+            scalingFactor: scalingFactor,
+            maxIterations: iterations
         )
     ) { benchmark in
         let span = startSpan("name")
@@ -36,8 +41,9 @@ let benchmarks: @Sendable () -> Void = {
         "NoopTracing.attribute. set, span.attributes['http.status_code'] = 200",
         configuration: .init(
             metrics: defaultMetrics,
-            timeUnits: .nanoseconds,
-            scalingFactor: .mega
+            timeUnits: timeUnit,
+            scalingFactor: scalingFactor,
+            maxIterations: iterations
         )
     ) { benchmark in
         let span = startSpan("name")
@@ -49,8 +55,9 @@ let benchmarks: @Sendable () -> Void = {
         "NoopTracing.attribute. set, span.attributes.http.status_code = 200",
         configuration: .init(
             metrics: defaultMetrics,
-            timeUnits: .nanoseconds,
-            scalingFactor: .mega
+            timeUnits: timeUnit,
+            scalingFactor: scalingFactor,
+            maxIterations: iterations
         )
     ) { benchmark in
         let span = startSpan("name")
