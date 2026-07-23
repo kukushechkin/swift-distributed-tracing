@@ -7,7 +7,7 @@ cost to apps that don't use it.
 
 - Proposal: SDT-0001
 - Author(s): [Vladimir Kukushkin](https://github.com/kukushechkin)
-- Status: **In Review**
+- Status: **Deferred**
 - Issue: [apple/swift-distributed-tracing#168](https://github.com/apple/swift-distributed-tracing/issues/168)
 - Implementation: [apple/swift-distributed-tracing#230](https://github.com/apple/swift-distributed-tracing/pull/230)
 
