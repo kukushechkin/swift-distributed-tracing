@@ -1,4 +1,4 @@
-# SDT-0001: task-local instrument
+# SDT-0001: task-local tracer
 
 A ``withTracer(_:_:)`` free function that binds a ``Tracer`` to the current task. It takes priority over the
 process-wide ``InstrumentationSystem/bootstrap(_:)`` for the scope, then falls back to it.
