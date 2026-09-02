@@ -14,7 +14,7 @@
 
 import Foundation
 import Instrumentation
-import ServiceContextModule
+import ServiceContextCore
 import Tracing
 
 /// Marked as @unchecked Sendable due to the synchronization being

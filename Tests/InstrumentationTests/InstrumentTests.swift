@@ -14,7 +14,7 @@
 
 import Foundation
 import Instrumentation
-import ServiceContextModule
+import ServiceContextCore
 import Testing
 
 @Suite("MultiplexInstrument")

@@ -4,21 +4,32 @@ import PackageDescription
 let package = Package(
     name: "swift-distributed-tracing",
     products: [
+        .library(name: "ServiceContextCore", targets: ["ServiceContextCore"]),
         .library(name: "Instrumentation", targets: ["Instrumentation"]),
         .library(name: "Tracing", targets: ["Tracing"]),
         .library(name: "InMemoryTracing", targets: ["InMemoryTracing"]),
     ],
-    dependencies: [
-        .package(url: "https://github.com/apple/swift-service-context.git", from: "1.1.0")
-    ],
     targets: [
+        // ==== --------------------------------------------------------------------------------------------------------
+        // MARK: ServiceContextCore
+
+        .target(
+            name: "ServiceContextCore"
+        ),
+        .testTarget(
+            name: "ServiceContextCoreTests",
+            dependencies: [
+                .target(name: "ServiceContextCore")
+            ]
+        ),
+
         // ==== --------------------------------------------------------------------------------------------------------
         // MARK: Instrumentation
 
         .target(
             name: "Instrumentation",
             dependencies: [
-                .product(name: "ServiceContextModule", package: "swift-service-context")
+                .target(name: "ServiceContextCore")
             ]
         ),
         .testTarget(
@@ -34,7 +45,7 @@ let package = Package(
         .target(
             name: "Tracing",
             dependencies: [
-                .product(name: "ServiceContextModule", package: "swift-service-context"),
+                .target(name: "ServiceContextCore"),
                 .target(name: "Instrumentation"),
                 .target(name: "_CWASI", condition: .when(platforms: [.wasi])),
             ]

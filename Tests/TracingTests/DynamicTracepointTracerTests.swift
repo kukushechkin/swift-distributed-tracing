@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 import Foundation
-import ServiceContextModule
+import ServiceContextCore
 import Testing
 import Tracing
 

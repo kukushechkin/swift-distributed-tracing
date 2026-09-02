@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ServiceContextModule
+import ServiceContextCore
 
 /// A type that allows extracting values from an associated carrier.
 ///

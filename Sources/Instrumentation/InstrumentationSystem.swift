@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ServiceContextModule
+import ServiceContextCore
 
 /// A global facility where the default cross-cutting tool can be configured.
 ///
