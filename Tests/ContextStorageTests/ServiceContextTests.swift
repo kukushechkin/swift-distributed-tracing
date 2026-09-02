@@ -14,7 +14,7 @@
 
 import Testing
 
-@testable import ServiceContextCore
+@testable import ContextStorage
 
 @Suite("ServiceContext Tests")
 struct ServiceContextTests {

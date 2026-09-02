@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ServiceContextCore
+import ContextStorage
 
 /// A global facility where the default cross-cutting tool can be configured.
 ///

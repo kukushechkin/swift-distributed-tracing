@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ServiceContextCore
+import ContextStorage
 
 /// A pseudo instrument to use to instrument using multiple instruments across a
 /// common service context.

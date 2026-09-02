@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 @_exported import Instrumentation
-@_exported import ServiceContextCore
+@_exported import ContextStorage
 
 // ==== -----------------------------------------------------------------------
 // MARK: Tracer protocol

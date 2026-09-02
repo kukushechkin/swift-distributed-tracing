@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ServiceContextCore
+import ContextStorage
 
 /// A type that encapsulates the trace ID, span ID, and parent span ID of an in-memory span.
 ///

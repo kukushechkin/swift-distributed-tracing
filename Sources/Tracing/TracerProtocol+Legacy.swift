@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 @_exported import Instrumentation
-@_exported import ServiceContextCore
+@_exported import ContextStorage
 
 /// A tracer protocol that supports Swift 5.6.
 ///
@@ -528,7 +528,7 @@ extension Tracer {
     ///   - line: The file line where the span started.
     public func startAnySpan<Instant: TracerInstant>(
         _ operationName: String,
-        context: @autoclosure () -> ServiceContextCore.ServiceContext,
+        context: @autoclosure () -> ServiceContext,
         ofKind kind: Tracing.SpanKind,
         at instant: @autoclosure () -> Instant,
         function: String,

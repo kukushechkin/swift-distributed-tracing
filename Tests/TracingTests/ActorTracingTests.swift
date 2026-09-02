@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ServiceContextCore
+import ContextStorage
 import Testing
 import Tracing
 

@@ -15,7 +15,7 @@
 import Dispatch
 import Foundation
 import Instrumentation
-import ServiceContextCore
+import ContextStorage
 import Tracing
 
 /// Only intended to be used in single-threaded testing.

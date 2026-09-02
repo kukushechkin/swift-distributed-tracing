@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-import ServiceContextCore
+import ContextStorage
 
 /// A "no op" implementation of an Instrument.
 public struct NoOpInstrument: Instrument {

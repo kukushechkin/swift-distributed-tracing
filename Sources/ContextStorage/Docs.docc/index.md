@@ -1,4 +1,4 @@
-# ``ServiceContextCore``
+# ``ContextStorage``
 
 Common currency type for type-safe and Swift concurrency aware context propagation.
 
