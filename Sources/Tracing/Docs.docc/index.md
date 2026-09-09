@@ -79,4 +79,4 @@ below to find the guide for your role.
 
 ### Proposal process
 
-- <doc:Proposals>
+- <doc:Proposals-article>
