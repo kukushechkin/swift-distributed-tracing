@@ -415,4 +415,4 @@ import InMemoryTracing
 
 The active tracer is the one the test set, so it captures emission directly. For propagation tests, call
 `InstrumentationSystem.instrument.inject(...)` / `.extract(...)` inside the closure instead. See
-<doc:TraceYourApplication#Scoping-a-tracer-using-withTracer> for the full semantics.
+<doc:TraceYourApplication#Scope-a-tracer-using-withTracer> for the full semantics.

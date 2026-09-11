@@ -21,7 +21,7 @@ There are two ways to set up instrumentation:
   used for the app's whole lifetime.
 - ``withTracer(_:_:)-mixl``: makes a tracer active for the current task while a closure runs, taking priority
   over the bootstrapped instrument. Useful for parallel-safe tests or per-subsystem overrides. See
-  [Scoping a tracer with withTracer](#Scoping-a-tracer-using-withTracer).
+  [Scoping a tracer with withTracer](#Scope-a-tracer-using-withTracer).
 
 > Note: Since instrumenting an **application** in practice will always need to pull in an existing tracer implementation,
 > in this guide we'll use the community maintained [`swift-otel`](https://github.com/slashmo/swift-otel) 
@@ -156,7 +156,7 @@ InstrumentationSystem.bootstrap(MultiplexInstrument([
 `MultiplexInstrument` will then call out to each instrument it has been initialized with.
 
 > Note: For scoped alternatives, such as per-test or per-subsystem tracers, use ``withTracer(_:_:)-mixl``. See
-> [Scoping a tracer with withTracer](#Scoping-a-tracer-using-withTracer).
+> [Scoping a tracer with withTracer](#Scope-a-tracer-using-withTracer).
 
 ### Introducing Trace Spans
 

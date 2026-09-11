@@ -27,7 +27,7 @@
 /// }
 /// ```
 ///
-/// See <doc:TraceYourApplication#Scoping-a-tracer-using-withTracer> for task inheritance, nesting, and
+/// See <doc:TraceYourApplication#Scope-a-tracer-using-withTracer> for task inheritance, nesting, and
 /// multi-instrument scoping.
 ///
 /// - Parameters:
@@ -66,7 +66,7 @@ public func withTracer<Result, Failure: Error>(
 /// }
 /// ```
 ///
-/// See <doc:TraceYourApplication#Scoping-a-tracer-using-withTracer> for task inheritance, nesting, and
+/// See <doc:TraceYourApplication#Scope-a-tracer-using-withTracer> for task inheritance, nesting, and
 /// multi-instrument scoping.
 ///
 /// - Parameters:
@@ -102,7 +102,7 @@ public nonisolated(nonsending) func withTracer<Result, Failure: Error>(
 /// }
 /// ```
 ///
-/// See <doc:TraceYourApplication#Scoping-a-tracer-using-withTracer> for task inheritance, nesting, and
+/// See <doc:TraceYourApplication#Scope-a-tracer-using-withTracer> for task inheritance, nesting, and
 /// multi-instrument scoping.
 ///
 /// - Parameters:
