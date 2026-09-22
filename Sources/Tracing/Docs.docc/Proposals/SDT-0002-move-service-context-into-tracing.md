@@ -91,10 +91,16 @@ Source-compatible everywhere: `import Tracing`, `import ServiceContextModule`, a
 - An adopter of only swift-distributed-tracing stops resolving swift-service-context.
 - An adopter of only swift-service-context now also resolves the full swift-distributed-tracing package,
   though the build only compiles `ContextStorage`.
-- A file that imports `ServiceContextModule` without declaring swift-service-context, relying on it being
-  present only transitively through swift-distributed-tracing, loses the module.
+
+##### Breaking changes
+
+- A file that writes `import ServiceContextModule` without its own package declaring a dependency on
+  swift-service-context, relying only on the module being present transitively through
+  swift-distributed-tracing, loses the module and gets `error: no such module 'ServiceContextModule'`.
+  The fix is to declare the dependency explicitly.
 - Upgrading only one of the two packages, so an old swift-service-context and a new
-  swift-distributed-tracing resolve together, fails to build: `ambiguous use of 'ServiceContext'`.
+  swift-distributed-tracing resolve together in one build, fails to build with `ambiguous use of
+  'ServiceContext'`. The fix is both packages must be upgraded together.
 
 ### Future directions
 
