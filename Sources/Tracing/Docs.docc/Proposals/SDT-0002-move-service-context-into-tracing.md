@@ -8,7 +8,7 @@ Move the `ServiceContext` implementation into swift-distributed-tracing, rename 
 
 - Proposal: SDT-0002
 - Author(s): [Vladimir Kukushkin](https://github.com/kukushechkin)
-- Status: **Awaiting Review**
+- Status: **Ready for Implementation**
 - Issue: -
 - Implementation:
     - [swift-distributed-tracing#240](https://github.com/apple/swift-distributed-tracing/pull/240)
