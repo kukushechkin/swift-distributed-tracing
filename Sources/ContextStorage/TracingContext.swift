@@ -278,6 +278,11 @@ extension TracingContext {
         try await TracingContext.$current.withValue(value, operation: operation)
     }
 
+    /// Bind the task-local ``TracingContext/current`` to the passed `value`, and execute the passed `operation`.
+    ///
+    /// To access the task-local value, use `TracingContext.current`.
+    ///
+    /// SeeAlso: [Swift Task Locals](https://developer.apple.com/documentation/swift/tasklocal)
     @available(*, deprecated, message: "Use the method with the isolation parameter instead.")
     // Deprecated trick to avoid executor hop here; 6.0 introduces the proper replacement: #isolation
     @_disfavoredOverload
