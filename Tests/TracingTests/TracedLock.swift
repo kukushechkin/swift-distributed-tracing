@@ -12,9 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import ContextStorage
 import Foundation
 import Instrumentation
-import ContextStorage
 import Tracing
 
 /// Marked as @unchecked Sendable due to the synchronization being

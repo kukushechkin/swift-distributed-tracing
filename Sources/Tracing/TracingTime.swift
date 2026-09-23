@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_documentation(visibility: internal) @_exported import Instrumentation
 @_documentation(visibility: internal) @_exported import ContextStorage
+@_documentation(visibility: internal) @_exported import Instrumentation
 
 #if canImport(Darwin)
 import Darwin

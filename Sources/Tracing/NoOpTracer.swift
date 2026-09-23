@@ -12,8 +12,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_documentation(visibility: internal) @_exported import Instrumentation
 @_documentation(visibility: internal) @_exported import ContextStorage
+@_documentation(visibility: internal) @_exported import Instrumentation
 
 /// Tracer that ignores all operations, used when no tracing is required.
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)  // for TaskLocal TracingContext

@@ -5,10 +5,10 @@
 ### Accessing the current context
 
 - ``current``
-- ``withValue(_:operation:)-4f7xo``
+- ``withValue(_:operation:)-3plj4``
 - ``withValue(_:isolation:operation:)``
 - ``TODO(_:function:file:line:)``
-- ``withValue(_:operation:)-3tddk``
+- ``withValue(_:operation:)-2w3p1``
 
 ### Creating a new top-level context
 

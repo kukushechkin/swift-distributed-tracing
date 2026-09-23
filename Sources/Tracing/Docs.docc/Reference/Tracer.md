@@ -4,25 +4,25 @@
 
 ### Creating spans
 
-- ``withSpan(_:context:ofKind:function:file:line:_:)-9r5mu``
+- ``withSpan(_:context:ofKind:function:file:line:_:)-78ysv``
 - ``withSpan(_:context:ofKind:isolation:function:file:line:_:)``
-- ``withSpan(_:context:ofKind:at:function:file:line:_:)-7hfa8``
+- ``withSpan(_:context:ofKind:at:function:file:line:_:)-54cgc``
 - ``withSpan(_:context:ofKind:at:isolation:function:file:line:_:)``
-- ``withAnySpan(_:at:context:ofKind:function:file:line:_:)-3tj0e``
+- ``withAnySpan(_:at:context:ofKind:function:file:line:_:)-3jxwc``
 - ``withAnySpan(_:at:context:ofKind:isolation:function:file:line:_:)``
 - ``Span``
 
-- ``withSpan(_:context:ofKind:function:file:line:_:)-49gj4``
-- ``withSpan(_:context:ofKind:at:function:file:line:_:)-7o9y1``
-- ``withAnySpan(_:at:context:ofKind:function:file:line:_:)-1aiz``
+- ``withSpan(_:context:ofKind:function:file:line:_:)-6iuze``
+- ``withSpan(_:context:ofKind:at:function:file:line:_:)-4jrrp``
+- ``withAnySpan(_:at:context:ofKind:function:file:line:_:)-6hbc``
 
 ### Manually managing spans
 
-- ``startSpan(_:context:ofKind:at:function:file:line:)-c9un``
+- ``startSpan(_:context:ofKind:at:function:file:line:)-6esce``
 - ``startSpan(_:context:ofKind:at:function:file:line:)``
 - ``Span/end()``
 
 ### Accessing spans
 
-- ``activeSpan(identifiedBy:)-4ttod``
-- ``activeSpan(identifiedBy:)-4mers``
+- ``activeSpan(identifiedBy:)-38391``
+- ``activeSpan(identifiedBy:)``

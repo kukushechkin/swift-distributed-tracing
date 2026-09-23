@@ -12,10 +12,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+import ContextStorage
 import Dispatch
 import Foundation
 import Instrumentation
-import ContextStorage
 import Tracing
 
 /// Only intended to be used in single-threaded testing.

@@ -59,7 +59,7 @@
 /// let testID = context.testID ?? "default"
 ///
 /// // remove a stored value
-/// context.testIDKey = nil
+/// context.testID = nil
 /// ```
 ///
 /// Note that normally a context should not be "created" ad-hoc by user code, but rather passed to it from
@@ -187,12 +187,12 @@ extension TracingContext {
     /// End users should use "accessors" the key's author MUST define rather than using this subscript, following this pattern:
     ///
     /// ```swift
-    /// internal enum TestID: TracingContext.Key {
-    ///     typealias Value = TestID
+    /// internal enum TestIDKey: TracingContextKey {
+    ///     typealias Value = String
     /// }
     ///
     /// extension TracingContext {
-    ///     public internal(set) var testID: TestID? {
+    ///     public internal(set) var testID: String? {
     ///         get {
     ///             self[TestIDKey.self]
     ///         }

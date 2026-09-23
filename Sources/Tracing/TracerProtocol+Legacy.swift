@@ -12,15 +12,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-@_documentation(visibility: internal) @_exported import Instrumentation
 @_documentation(visibility: internal) @_exported import ContextStorage
+@_documentation(visibility: internal) @_exported import Instrumentation
 
 /// A tracer protocol that supports Swift 5.6.
 ///
 /// **This protocol will be deprecated as soon as possible**, and the library will continue recommending Swift 5.7+
 /// in order to make use of new language features that make expressing the tracing API free of existential types when not necessary.
 ///
-/// When possible, prefer using ``Tracer`` and ``withSpan(_:context:ofKind:at:function:file:line:_:)-8gw3v`` APIs,
+/// When possible, prefer using ``Tracer`` and ``withSpan(_:context:ofKind:at:function:file:line:_:)-8wgpb`` APIs,
 /// rather than these `startAnySpan` APIs which unconditionally always return existential Spans even when not necessary
 /// (under Swift 5.7+ type-system enhancement wrt. protocols with associated types)..
 @available(macOS 10.15, iOS 13, tvOS 13, watchOS 6, *)  // for TaskLocal TracingContext
@@ -38,7 +38,7 @@ public protocol LegacyTracer: Instrument {
     ///
     /// - Note: Legacy API, prefer using ``startSpan(_:context:ofKind:at:
     ///
-    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8gw3v`` to start
+    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8wgpb`` to start
     ///   a span as it automatically takes care of ending the span, and recording errors when thrown.
     ///   Use `startSpan` iff you need to pass the span manually to a different
     ///   location in your source code to end it.
@@ -95,7 +95,7 @@ extension LegacyTracer {
     ///
     /// - Note: Legacy API, prefer using ``startSpan(_:context:ofKind:at:
     ///
-    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8gw3v`` to start
+    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8wgpb`` to start
     ///   a span as it automatically takes care of ending the span, and recording errors when thrown.
     ///   Use `startSpan` iff you need to pass the span manually to a different
     ///   location in your source code to end it.
@@ -146,7 +146,7 @@ extension LegacyTracer {
     ///
     /// - Note: Legacy API, prefer using ``startSpan(_:context:ofKind:at:
     ///
-    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8gw3v`` to start
+    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8wgpb`` to start
     ///   a span as it automatically takes care of ending the span, and recording errors when thrown.
     ///   Use `startSpan` iff you need to pass the span manually to a different
     ///   location in your source code to end it.
@@ -515,7 +515,7 @@ extension Tracer {
     ///
     /// - Note: Legacy API, prefer using ``startSpan(_:context:ofKind:at:
     ///
-    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8gw3v`` to start
+    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8wgpb`` to start
     ///   a span as it automatically takes care of ending the span, and recording errors when thrown.
     ///   Use `startSpan` iff you need to pass the span manually to a different
     ///   location in your source code to end it.
@@ -565,7 +565,7 @@ extension Tracer {
     ///
     /// - Note: Legacy API, prefer using ``startSpan(_:context:ofKind:at:
     ///
-    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8gw3v`` to start
+    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8wgpb`` to start
     ///   a span as it automatically takes care of ending the span, and recording errors when thrown.
     ///   Use `startSpan` iff you need to pass the span manually to a different
     ///   location in your source code to end it.
@@ -621,7 +621,7 @@ extension Tracer {
     ///
     /// - Note: Legacy API, prefer using ``startSpan(_:context:ofKind:at:
     ///
-    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8gw3v`` to start
+    /// - Note: Prefer ``withSpan(_:context:ofKind:at:function:file:line:_:)-8wgpb`` to start
     ///   a span as it automatically takes care of ending the span, and recording errors when thrown.
     ///   Use `startSpan` iff you need to pass the span manually to a different
     ///   location in your source code to end it.

@@ -12,9 +12,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+import ContextStorage
 import Foundation
 import Instrumentation
-import ContextStorage
 import Testing
 
 @Suite("MultiplexInstrument")
