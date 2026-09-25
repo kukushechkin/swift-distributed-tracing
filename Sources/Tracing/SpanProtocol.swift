@@ -17,7 +17,7 @@
 /// A span represents an interval from the start of an operation to its end, along with additional metadata included
 /// with it.
 ///
-/// A `Span` can be created from a `TracingContext` or `LoggingContext` which MAY contain existing span identifiers,
+/// A `Span` can be created from a `TracingContext` which MAY contain existing span identifiers,
 /// in which case this span should be considered as child of the previous span.
 ///
 /// Spans are created by invoking the `withSpan` method that delegates to the currently configured bootstrapped

@@ -49,7 +49,7 @@ public protocol TracingContextKey: Sendable {
     ///
     /// This name will be used instead of the type name when a value is printed.
     ///
-    /// It MAY also be picked up by an instrument (from Swift Tracing) which serializes context items, such as used as
+    /// It MAY also be picked up by an instrument (from Swift Tracing) which serializes context items, such as being used as the
     /// header name for carried metadata. Though generally speaking header names are NOT required to use the nameOverride,
     /// and MAY use their well known names for header names and so on, as it depends on the specific transport and instrument used.
     ///
@@ -97,7 +97,7 @@ extension AnyTracingContextKey: Hashable {
     /// - Parameters:
     ///   - lhs: The first service context key.
     ///   - rhs: The second service context key.
-    /// - Returns: `True` if equivalent; otherwise `false`.
+    /// - Returns: `true` if equivalent; otherwise `false`.
     public static func == (lhs: AnyTracingContextKey, rhs: AnyTracingContextKey) -> Bool {
         ObjectIdentifier(lhs.keyType) == ObjectIdentifier(rhs.keyType)
     }

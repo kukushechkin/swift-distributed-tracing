@@ -44,10 +44,10 @@
 ///
 /// For consistency, name key types with a `...Key` suffix (for example, `SomethingKey`) and the property
 /// used to access a value identifier by such key the prefix of the key (for example `something`).
-/// Please also observe the usual Swift naming conventions, such as prefering `ID` to `Id`, and so on.
+/// Please also observe the usual Swift naming conventions, such as preferring `ID` to `Id`, and so on.
 ///
 /// ### Usage
-/// Using a context container is fairly straight forward, as it boils down to using the prepared computed properties:
+/// Using a context container is fairly straightforward, as it boils down to using the prepared computed properties:
 ///
 /// ```swift
 /// var context = TracingContext.topLevel

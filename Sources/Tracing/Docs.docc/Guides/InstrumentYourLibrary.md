@@ -272,7 +272,7 @@ func handler(request: HTTPRequest) async {
 }
 ```
 
-This is introducing multiple layers of nesting, and we have un-necessarily restored, picked-up, and restored the context again. In order to avoid this duplicate work, it is beneficial to use the ``withSpan(_:context:ofKind:at:function:file:line:_:)-8wgpb`` overload, which also accepts a `ServiceContext` as parameter, rather than picking it up from the task-local value:
+This is introducing multiple layers of nesting, and we have unnecessarily restored, picked-up, and restored the context again. In order to avoid this duplicate work, it is beneficial to use the ``withSpan(_:context:ofKind:at:function:file:line:_:)-8wgpb`` overload, which also accepts a `ServiceContext` as parameter, rather than picking it up from the task-local value:
 
 ```swift
 // BETTER
