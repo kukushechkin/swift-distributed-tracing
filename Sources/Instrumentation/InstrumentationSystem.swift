@@ -76,7 +76,6 @@ public enum InstrumentationSystem {
         try Self.$_taskLocalInstrument.withValue(instrument, operation: operation)
     }
 
-    #if compiler(>=6.2)
     /// Async variant of ``withTaskLocalInstrument(_:operation:)``.
     @usableFromInline
     package nonisolated(nonsending) static func withTaskLocalInstrument<Result>(
@@ -85,17 +84,6 @@ public enum InstrumentationSystem {
     ) async rethrows -> Result {
         try await Self.$_taskLocalInstrument.withValue(instrument, operation: operation)
     }
-    #else
-    /// Async variant of ``withTaskLocalInstrument(_:operation:)``.
-    @usableFromInline
-    package static func withTaskLocalInstrument<Result>(
-        _ instrument: any Instrument,
-        isolation: isolated (any Actor)? = #isolation,
-        operation: () async throws -> Result
-    ) async rethrows -> Result {
-        try await Self.$_taskLocalInstrument.withValue(instrument, operation: operation)
-    }
-    #endif
 
     /// Globally select the desired ``Instrument`` implementation.
     ///
