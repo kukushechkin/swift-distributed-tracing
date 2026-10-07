@@ -8,7 +8,7 @@ While Swift Distributed Tracing allows building all kinds of _instruments_, whic
 
 ---
 
-This project defines `TracingContext`, the context propagation type used to carry values across
+This project defines `InstrumentationContext`, the context propagation type used to carry values across
 concurrent Swift code. [swift-service-context](https://github.com/apple/swift-service-context) is a thin
 compatibility package that keeps the type's former name, `ServiceContext`, working for existing adopters.
 
